@@ -88,6 +88,18 @@ initMap = () => {
 
   updateRestaurants();
 }
+/* window.initMap = () => {
+  let loc = {
+    lat: 40.722216,
+    lng: -73.987501
+  };
+  self.map = new google.maps.Map(document.getElementById('map'), {
+    zoom: 12,
+    center: loc,
+    scrollwheel: false
+  });
+  updateRestaurants();
+} */
 
 /**
  * Update page and map for current restaurants.
@@ -146,32 +158,55 @@ fillRestaurantsHTML = (restaurants = self.restaurants) => {
 createRestaurantHTML = (restaurant) => {
   const li = document.createElement('li');
 
-  if (restaurant.photograph) {
-    const image = document.createElement('img');
-    image.className = 'restaurant-img';
-    image.src = DBHelper.imageUrlForRestaurant(restaurant, '-270x248.jpg');
-    image.alt = 'Image of ' + restaurant.name + ' restaurant';
-    li.append(image);
-  }
+  const image = document.createElement('img');
+  image.className = 'restaurant-img';
+  var imgurlbase = DBHelper.imageUrlForRestaurant(restaurant);
+  var length_image = imgurlbase.length;
+  imgurlbase = imgurlbase.substring(0, length_image - 4);
+  const imgurl1x = imgurlbase + "_320.jpg";
+  const imgurl2x = imgurlbase + "_503.jpg";
+  const imgurl3x = imgurlbase + "_900.jpg";
+  image.src = imgurl1x;
+  image.srcset = `${imgurl1x} 320w, ${imgurl2x} 503w, ${imgurl3x} 900w`;
+  image.sizes = `(max-width: 503px) 320px, (max-width: 900px) 503px, 900px`;
+  image.alt = restaurant.name + " restaurant marketing photograph";
+  li.append(image);
 
   const name = document.createElement('h2');
   name.innerHTML = restaurant.name;
   li.append(name);
 
   const neighborhood = document.createElement('p');
+  neighborhood.className = 'restaurant-neighborhood';
   neighborhood.innerHTML = restaurant.neighborhood;
   li.append(neighborhood);
 
   const address = document.createElement('p');
+  address.className = 'restaurant-address';
   address.innerHTML = restaurant.address;
   li.append(address);
 
-  const viewBlock = document.createElement('div');
-  li.append(viewBlock)
-  const more = document.createElement('a');
+
+  const more = document.createElement('button');
+  var label_attribute = document.createAttribute("aria-labelledby");
+  var restaurant_name = restaurant.name;
+  restaurant_name = restaurant_name.replace(/\s+/g, '');
+  label_attribute.value = restaurant_name + "_label";
+  more.setAttributeNode(label_attribute);
   more.innerHTML = 'View Details';
-  more.href = DBHelper.urlForRestaurant(restaurant);
-  viewBlock.append(more)
+
+  const aria_label = document.createElement('label');
+  aria_label.id = restaurant_name + "_label";
+  aria_label.className = "aria-label";
+  aria_label.innerHTML = "Link: Restaurant " + restaurant.name + " Details. Neighborhood: " + restaurant.neighborhood + " Address: " + restaurant.address;
+
+  more.onclick = function () {
+    const url = DBHelper.urlForRestaurant(restaurant);
+    window.location = url;
+  }
+
+  li.append(more)
+  li.append(aria_label)
 
   return li
 }
@@ -190,4 +225,14 @@ addMarkersToMap = (restaurants = self.restaurants) => {
     self.markers.push(marker);
   });
 
-} 
+}
+/* addMarkersToMap = (restaurants = self.restaurants) => {
+  restaurants.forEach(restaurant => {
+    // Add marker to the map
+    const marker = DBHelper.mapMarkerForRestaurant(restaurant, self.map);
+    google.maps.event.addListener(marker, 'click', () => {
+      window.location.href = marker.url
+    });
+    self.markers.push(marker);
+  });
+} */

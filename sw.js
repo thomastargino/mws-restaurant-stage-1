@@ -1,40 +1,30 @@
-var staticCacheName = 'wittr-static-v1';
-var contentImgsCache = 'wittr-content-imgs';
-var allCaches = [
-    staticCacheName,
-    contentImgsCache
-];
+// Define the Caches
+var staticCacheName = 'mws-restaurant-static-v';
+// Set Get Random number for Cache ID
+var randomNumberBetween0and19999 = Math.floor(Math.random() * 20000);
+var cache_id = randomNumberBetween0and19999;
+staticCacheName += cache_id;
 
-self.addEventListener('install', function (event) {
+self.addEventListener("install", function (event) {
     event.waitUntil(
         caches.open(staticCacheName).then(function (cache) {
             return cache.addAll([
-                '/',
+                'index.html',
                 'restaurant.html',
-                'manifest.json',
-                'favicon.ico',
-                'js/main.js',
-                'js/restaurant_info.js',
-                'js/dbhelper.js',
-                'js/indexController.js',
-                'css/styles_small.css',
-                'css/styles_medium.css',
-                'css/styles_large.css',
-                'img/1-270x248.jpg',
-                'img/2-270x248.jpg',
-                'img/3-270x248.jpg',
-                'img/4-270x248.jpg',
-                'img/5-270x248.jpg',
-                'img/6-270x248.jpg',
-                'img/7-270x248.jpg',
-                'img/8-270x248.jpg',
-                'img/9-270x248.jpg',
-                'img/10-270x248.jpg'
-            ]);
-        }).catch(function (error) {
-            console.log(error); // "oh, no!"
-        })
-    );
+                '/css/main.css',
+                '/css/responsive.css',
+                '/js/dbhelper.js',
+                '/js/main.js',
+                '/js/restaurant_info.js',
+                '/img/*',
+                '/js/register.js',
+                '//normalize-css.googlecode.com/svn/trunk/normalize.css',
+                'https://fonts.googleapis.com/css?family=Roboto:300,400,500'
+            ])
+                .catch(error => {
+
+                });
+        }));
 });
 
 self.addEventListener('activate', function (event) {
@@ -42,8 +32,8 @@ self.addEventListener('activate', function (event) {
         caches.keys().then(function (cacheNames) {
             return Promise.all(
                 cacheNames.filter(function (cacheName) {
-                    return cacheName.startsWith('wittr-') &&
-                        !allCaches.includes(cacheName);
+                    return cacheName.startsWith('mws-restaurant-') &&
+                        cacheName != staticCacheName;
                 }).map(function (cacheName) {
                     return caches.delete(cacheName);
                 })
@@ -52,59 +42,40 @@ self.addEventListener('activate', function (event) {
     );
 });
 
-self.addEventListener('fetch', function (event) {
-    var requestUrl = new URL(event.request.url);
-    // console.log(event.request.url);
 
-    // http://localhost:1337/reviews/?restaurant_id=1
-    // http://localhost:1337/restaurants/
-    if (event.request.url.includes("/restaurants/") || event.request.url.includes("/reviews/")) {
-        console.log(event.request.url);
-        // console.log('no cache');
-        event.respondWith(fetch(event.request, { cache: "no-store" }));
-        return
+self.addEventListener('fetch',
+    function (event) {
+        event.respondWith
+            (
+                caches.match(event.request)
+                    .then
+                    (
+                        function (response) {
+                            if (response !== undefined) {
+                                return response;
+                            }
+
+                            else {
+                                return fetch(event.request).then
+                                    (
+                                        function (response) {
+                                            let responseClone = response.clone();
+
+                                            caches.open(staticCacheName)
+                                                .then
+                                                (
+                                                    function (cache) {
+                                                        cache.put(event.request, responseClone);
+                                                    }
+                                                );
+                                            return response;
+                                        }
+                                    );
+                            }
+                        }
+                    ) // end of promise for cache match
+
+            ); // end of respond with
+
     }
-    /*
-      if (requestUrl.origin === location.origin) {
-        if (event.request.cache === 'only-if-cached' && event.request.mode !== 'same-origin') {
-          console.log(event.request);
-          console.log("fetch error - only-if-cached");
-          return;
-        }
-        return fetch(event.request).catch(function (error) {
-          console.log(error);
-          console.log(event.request);
-          console.log("fetch error");
-        })
-      }
-    */
-    event.respondWith(serveStatic(event.request));
-    return;
-});
-
-function serveStatic(request) {
-    var storageUrl = request.url;
-    // http://localhost:8000/restaurant.html?id=2
-    storageUrl = storageUrl.replace(/\?.*$/, '');
-    /*
-      storageUrl = storageUrl.replace(/&token=.*$/, '');
-      storageUrl = storageUrl.replace(/&callback=.*$/, '');
-      if (request.url.includes('QuotaService.RecordEvent')) {
-        storageUrl = storageUrl.replace(/\?.*$/, '');
-      }
-    */
-    return caches.open(staticCacheName).then(function (cache) {
-        return cache.match(storageUrl).then(function (response) {
-            if (response) return response;
-
-            return fetch(request).then(function (networkResponse) {
-                //console.log(request.url);
-                cache.put(storageUrl, networkResponse.clone());
-                return networkResponse;
-            }).catch(function () {
-                console.log(request.url);
-                console.log("error");
-            });
-        });
-    });
-}
+);

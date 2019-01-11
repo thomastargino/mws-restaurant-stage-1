@@ -1,137 +1,52 @@
 /**
  * Common database helper functions.
  */
-
-const DATA_PORT = 1337; // Change this to your server port
-const RESTAURANTS_URL = `http://localhost:${DATA_PORT}/restaurants/`;
-const REVIEWS_URL = `http://localhost:${DATA_PORT}/reviews/`;
-
 class DBHelper {
 
-  static openDatabase() {
-    if (!navigator.serviceWorker) {
-      return Promise.resolve();
-    }
-
-    return idb.open('rrx', 1, function (upgradeDb) {
-      var storex = upgradeDb.createObjectStore('restaurants', {
-        keyPath: 'id'
-      });
-      storex.createIndex('by-id', 'id');
-
-      var storey = upgradeDb.createObjectStore('reviews', {
-        keyPath: 'id'
-      });
-      storey.createIndex('by-id', 'id');
-      storey.createIndex('by-restaurant_id', 'restaurant_id', { unique: false });
-    });
-  }
-
   /**
-   * Store all restaurants.
+   * Database URL.
+   * Change this to restaurants.json file location on your server.
    */
-  static storeRestaurants() {
-    fetch(RESTAURANTS_URL, {
-      method: 'get'
-    }).then(function (response) {
-      return response.json();
-    }).then(function (json) {
-      const restaurants = json;
-      dbPromise.then(function (db) {
-        if (!db) return;
-        var tx = db.transaction('restaurants', 'readwrite');
-        var store = tx.objectStore('restaurants');
-        restaurants.forEach(function (restaurant) {
-          store.put(restaurant);
-        });
-      });
-
-    }).catch(function (err) {
-      const error = (`Request failed. Returned status of ${err}`);
-    });
-  }
-
-  /**
-   * Store reviews.
-   */
-  static storeReviews(reviews) {
-    dbPromise.then(function (db) {
-      if (!db) return;
-      var tx = db.transaction('reviews', 'readwrite');
-      var store = tx.objectStore('reviews');
-      reviews.forEach(function (review) {
-        store.put(review);
-      });
-    });
-  }
-
-  /**
-   * Fetch all restaurants.
-   */
-  static fetchReviewsById(sid, callback) {
-    fetch(REVIEWS_URL + '?restaurant_id=' + sid, {
-      method: 'get'
-    }).then(function (response) {
-      return response.json();
-    }).then(function (reviews) {
-      DBHelper.storeReviews(reviews);
-      if (reviews) {
-        callback(null, reviews);
-      } else {
-        callback('Reviews do not exist', null);
-      }
-      return reviews;
-    }).catch(function (err) {
-      const id = parseInt(sid);
-      dbPromise.then(db => {
-        return db.transaction('reviews').objectStore('reviews').index('by-restaurant_id').getAll(id);
-      }).then(function (reviews) {
-        if (reviews) {
-          callback(null, reviews);
-        } else {
-          callback('Reviews does not exist', null);
-        }
-      }).catch(function (err) {
-        const error = (`Request failed. Returned status of ${err}`);
-        callback(err, null);
-      });
-      const error = (`Request failed. Returned status of ${err}`);
-      callback(err, null);
-    });
+  static get DATABASE_URL() {
+    const port = 8000 // Change this to your server port
+    return `http://localhost:${port}/data/restaurants.json`;
   }
 
   /**
    * Fetch all restaurants.
    */
   static fetchRestaurants(callback) {
-    return dbPromise.then(db => {
-      return db.transaction('restaurants').objectStore('restaurants').index('by-id').getAll();
-    }).then(response => {
-      return response;
-    }).then(function (restaurants) {
-      callback(null, restaurants);
-    }).catch(function (err) {
-      const error = (`Request failed. Returned status of ${err}`);
-      callback(err, null);
-    });
+    let xhr = new XMLHttpRequest();
+    xhr.open('GET', DBHelper.DATABASE_URL);
+    xhr.onload = () => {
+      if (xhr.status === 200) { // Got a success response from server!
+        const json = JSON.parse(xhr.responseText);
+        const restaurants = json.restaurants;
+        callback(null, restaurants);
+      } else { // Oops!. Got an error from server.
+        const error = (`Request failed. Returned status of ${xhr.status}`);
+        callback(error, null);
+      }
+    };
+    xhr.send();
   }
 
   /**
-   * Fetch restaurants by Id.
+   * Fetch a restaurant by its ID.
    */
-  static fetchRestaurantById(sid, callback) {
-    const id = parseInt(sid);
-    dbPromise.then(db => {
-      return db.transaction('restaurants').objectStore('restaurants').index('by-id').get(id);
-    }).then(function (restaurant) {
-      if (restaurant) {
-        callback(null, restaurant);
+  static fetchRestaurantById(id, callback) {
+    // fetch all restaurants with proper error handling.
+    DBHelper.fetchRestaurants((error, restaurants) => {
+      if (error) {
+        callback(error, null);
       } else {
-        callback('Restaurant does not exist', null);
+        const restaurant = restaurants.find(r => r.id == id);
+        if (restaurant) { // Got the restaurant
+          callback(null, restaurant);
+        } else { // Restaurant does not exist in the database
+          callback('Restaurant does not exist', null);
+        }
       }
-    }).catch(function (err) {
-      const error = (`Request failed. Returned status of ${err}`);
-      callback(err, null);
     });
   }
 
@@ -234,9 +149,8 @@ class DBHelper {
   /**
    * Restaurant image URL.
    */
-  static imageUrlForRestaurant(restaurant, size) {
-    // return (`/img/${restaurant.photograph.slice(0, -4) + size}`);
-    return (`/img/${restaurant.photograph + size}`);
+  static imageUrlForRestaurant(restaurant) {
+    return (`/img/${restaurant.photograph}`);
   }
 
   /**
@@ -253,53 +167,15 @@ class DBHelper {
     marker.addTo(newMap);
     return marker;
   }
+  /* static mapMarkerForRestaurant(restaurant, map) {
+    const marker = new google.maps.Marker({
+      position: restaurant.latlng,
+      title: restaurant.name,
+      url: DBHelper.urlForRestaurant(restaurant),
+      map: map,
+      animation: google.maps.Animation.DROP}
+    );
+    return marker;
+  } */
 
-  /**
-   * Update restaurants favorite
-   * 
-   * Favorite a restaurant (PUT)
-   * http://localhost:1337/restaurants/<restaurant_id>/?is_favorite=true
-   * 
-   * Unfavorite a restaurant (PUT)
-   * http://localhost:1337/restaurants/<restaurant_id>/?is_favorite=false
-   */
-  static updateRestaurantFavorite(restaurant, favorite) {
-    const url = RESTAURANTS_URL + restaurant.id + '/?is_favorite=' + favorite;
-    console.log(url);
-    fetch(url, {
-      method: 'put'
-    }).then(function (response) {
-      return response.json();
-    }).then(function (json) {
-      const restaurant = json;
-      console.log('111');
-      console.log(restaurant);
-
-      dbPromise.then(function (db) {
-        if (!db) return;
-        var tx = db.transaction('restaurants', 'readwrite');
-        var store = tx.objectStore('restaurants');
-        store.put(restaurant);
-      });
-
-    }).catch(function (err) {
-      const error = (`Request failed. Returned status of ${err}`);
-    });
-  }
 }
-
-/**
- * Fetch all neighborhoods and set their HTML.
- */
-initRestaurants = () => {
-  DBHelper.storeRestaurants((error, neighborhoods) => {
-    if (error) { // Got an error
-      console.error(error);
-    } else {
-      console.error(neighborhoods);
-    }
-  });
-}
-
-const dbPromise = DBHelper.openDatabase();
-initRestaurants();
